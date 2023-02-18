@@ -17,18 +17,8 @@ app.use(bodyParser.json())
 //routes
 app.use("/post", postModel);
 app.use('/user', userModel);
-//app.use('/public/images', express.static(__dirname+ '/public/images'));
-app.use(
-    "/post",
-    fileUpload({
-      useTempFiles: true,
-      tempFileDir: path.join(__dirname, "/tmp/"),
-      abortOnLimit:true,
-      preserveExtension:true,
-      safeFileNames:true,
-      limits: { fieldSize: 50 * 2024 * 1024 },
-    })
-  );
+app.use('/public/images', express.static(__dirname+ '/public/images'));
+
 //handle unhandled routes
 app.all('*', (req,res,next)=> {
     next(new AppError(`can't find this route: ${req.originalUrl} on this site`, 404))

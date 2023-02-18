@@ -1,21 +1,38 @@
 const AppError = require("../../utils/appError");
 const { catchAsyncError } = require("../../utils/catchAsync");
 const Post = require("./post.model");
-const User= require('../users/user.model')
+const User = require("../users/user.model");
+
+const cloudinary = require("cloudinary").v2;
+
+// Configuration
+cloudinary.config({
+  cloud_name: "dwjuqzxo4",
+  api_key: "895823372869496",
+  api_secret: "_QKMyzPBazihGQavFPLTLV7wvmY",
+});
 
 exports.createPost = catchAsyncError(async (req, res, next) => {
-  const url = `${req.protocol}://${req.get("host")}/public/images/`;
-  let post = new Post({
-    title: req.body.title,
-    content: req.body.content,
-    image: url + req.file.filename,
-    user: req.user.id
-  });
+  cloudinary.uploader.upload(
+    req.file.path,
+    async (err,result)=> {
+      let post = new Post({
+        title: req.body.title,
+        content: req.body.content,
+        image:  result.secure_url,
+        user: req.user.id,
+      });
+    
+      post = await post.save();
+      !post && res.status(400).json({ message: "Cannot Add Post" });
+    
+      post && res.status(201).json({ message: "Post Added Successfully", post });
+    }
+  );
 
-  post = await post.save();
-  !post && res.status(400).json({ message: "Cannot Add Post" });
 
-  post && res.status(201).json({ message: "Post Added Successfully", post });
+  //const url = `${req.protocol}://${req.get("host")}/public/images/`;
+
 });
 
 exports.getPosts = catchAsyncError(async (req, res, next) => {
@@ -52,61 +69,60 @@ exports.getPost = catchAsyncError(async (req, res, next) => {
 exports.deletePost = catchAsyncError(async (req, res, next) => {
   const { id } = req.params;
 
-  let user= await User.findById(req.user._id);
+  let user = await User.findById(req.user._id);
   !user && next(new AppError("Please Login First"));
 
-  let postExist= await Post.findById(id);
-  !postExist && next(new AppError("Cannot get Post"))
+  let postExist = await Post.findById(id);
+  !postExist && next(new AppError("Cannot get Post"));
 
-  if(user._id.toString() === postExist.user.toString()) {
+  if (user._id.toString() === postExist.user.toString()) {
     let post = await Post.findByIdAndRemove(id);
 
     !post && next(new AppError("cant Delete Post !"));
-  
+
     post &&
       res.status(201).json({ message: "Post Deleted Successfully !", post });
-  }else { 
-    return res.status(401).json({message: "Not Authorized to Delete"})
+  } else {
+    return res.status(401).json({ message: "Not Authorized to Delete" });
   }
- 
 });
 
 exports.updatePost = catchAsyncError(async (req, res, next) => {
   const { id } = req.params;
 
-  let user= await User.findById(req.user._id);
+  let user = await User.findById(req.user._id);
   !user && next(new AppError("Please Login First"));
-
 
   let post = await Post.findById(id);
   !post && res.status(400).json({ message: "Cannot Find Post" });
 
-  if(user._id.toString() === post.user.toString()) {
-    let imagePath;
-    const url = `${req.protocol}://${req.get("host")}/public/images/`;
-    if (req.file) {
-      imagePath = url + req.file.filename;
-    } else {
-      imagePath = post.image;
-    }
+  if (user._id.toString() === post.user.toString()) {
+    cloudinary.uploader.upload(req.file.path, async (err,result)=> {
+      let imagePath;
+      //const url = `${req.protocol}://${req.get("host")}/public/images/`;
+      if (req.file) {
+        imagePath = result.secure_url;
+      } else {
+        imagePath = post.image;
+      }
   
-    let updtPost = await Post.findByIdAndUpdate(
-      id,
-      {
-        title: req.body.title,
-        content: req.body.content,
-        image: imagePath,
-      },
-      { new: true }
-    );
+      let updtPost = await Post.findByIdAndUpdate(
+        id,
+        {
+          title: req.body.title,
+          content: req.body.content,
+          image: imagePath,
+        },
+        { new: true }
+      );
   
-    !updtPost && next(new AppError("Cannot update Post !"));
+      !updtPost && next(new AppError("Cannot update Post !"));
   
-    updtPost &&
-      res.status(201).json({ message: "Post Update Successfully !", updtPost });
-  }else {
-    return res.status(401).json({message: "Not Authorized to update"});
+      updtPost &&
+        res.status(201).json({ message: "Post Update Successfully !", updtPost });
+    })
+ 
+  } else {
+    return res.status(401).json({ message: "Not Authorized to update" });
   }
-
-  
 });
